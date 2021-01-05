@@ -9,7 +9,6 @@ function theme_slug_setup() {
 }
 add_action('after_setup_theme','theme_slug_setup');
 
-
 $GLOBALS['theme_version'] = wp_get_theme() -> Version;
 $argon_assets_path = get_option("argon_assets_path");
 if ($argon_assets_path== "jsdelivr"){
@@ -59,7 +58,7 @@ if ($argon_last_version == ""){
 	$argon_last_version = "0.0";
 }
 if (version_compare($argon_last_version, $GLOBALS['theme_version'], '<' )){
-	if (version_compare($argon_last_version, '0.940', '<' )){
+	if (version_compare($argon_last_version, '0.940', '<')){
 		if (get_option('argon_mathjax_v2_enable') == 'true' && get_option('argon_mathjax_enable') != 'true'){
 			update_option("argon_math_render", 'mathjax2');
 		}
@@ -67,9 +66,15 @@ if (version_compare($argon_last_version, $GLOBALS['theme_version'], '<' )){
 			update_option("argon_math_render", 'mathjax3');
 		}
 	}
-	if (version_compare($argon_last_version, '0.970', '<' )){
+	if (version_compare($argon_last_version, '0.970', '<')){
 		if (get_option('argon_show_author') == 'true'){
 			update_option("argon_article_meta", 'time|views|comments|categories|author');
+		}
+	}
+	if (version_compare($argon_last_version, '1.1.0', '<')){
+		if (get_option('argon_enable_zoomify') != 'false'){
+			update_option("argon_enable_fancybox", 'true');
+			update_option("argon_enable_zoomify", 'false');
 		}
 	}
 	update_option("argon_last_version", $GLOBALS['theme_version']);
@@ -91,7 +96,7 @@ if ($argon_update_source == 'stop'){
 
 //初次使用时发送安装量统计信息 (数据仅用于统计安装量)
 function post_analytics_info(){
-	update_option('argon_has_inited', 'true');	
+	update_option('argon_has_inited', 'true');
 }
 if (get_option('argon_has_inited') != 'true'){
 	post_analytics_info();
@@ -163,7 +168,7 @@ function argon_has_post_thumbnail($postID = 0){
 	if (has_post_thumbnail()){
 		return true;
 	}
-	$argon_first_image_as_thumbnail = get_post_meta($post -> ID, 'argon_first_image_as_thumbnail', true);
+	$argon_first_image_as_thumbnail = get_post_meta($postID, 'argon_first_image_as_thumbnail', true);
 	if ($argon_first_image_as_thumbnail == ""){
 		$argon_first_image_as_thumbnail = "default";
 	}
@@ -180,7 +185,7 @@ function argon_get_post_thumbnail($postID = 0){
 		$postID = $post -> ID;
 	}
 	if (has_post_thumbnail()){
-		return wp_get_attachment_image_src(get_post_thumbnail_id($post->ID), "full")[0];
+		return wp_get_attachment_image_src(get_post_thumbnail_id($postID), "full")[0];
 	}
 	return argon_get_first_image_of_article();
 }
@@ -279,18 +284,19 @@ function get_argon_formatted_paginate_links($maxPageNumbers, $extraClasses = '')
 function get_argon_formatted_paginate_links_for_all_platforms(){
 	return get_argon_formatted_paginate_links(7) . get_argon_formatted_paginate_links(5, " pagination-mobile");
 }
-//访问者 Token
+//访问者 Token & Session
 function get_random_token(){
 	return md5(uniqid(microtime(true), true));
 }
 function set_user_token_cookie(){
-	if (strlen($_COOKIE["argon_user_token"]) != 32){
+	if (!isset($_COOKIE["argon_user_token"]) || strlen($_COOKIE["argon_user_token"]) != 32){
 		$newToken = get_random_token();
 		setcookie("argon_user_token", $newToken, time() + 10 * 365 * 24 * 60 * 60, "/");
 		$_COOKIE["argon_user_token"] = $newToken;
 	}
 }
 set_user_token_cookie();
+session_start();
 //页面 Description Meta
 function get_seo_description(){
 	global $post;
@@ -353,6 +359,10 @@ function get_post_views($post_id){
 	return number_format_i18n($count);
 }
 function set_post_views(){
+	if (!isset($post_id)){
+		global $post;
+		$post_id = $post -> ID;
+	}
 	if (post_password_required($post_id)){
 		return;
 	}
@@ -390,12 +400,12 @@ add_action('get_header', 'set_post_views');
 //字数和预计阅读时间
 function get_article_words($str){
 	$str = preg_replace(
-		'/<code(.*?)>([\w\W]*)<\/code>/',
+		'/<code(.*?)>(.*?)<\/code>/is',
 		'',
 		$str
 	);
 	$str = preg_replace(
-		'/<pre(.*?)>([\w\W]*)<\/pre>/',
+		'/<pre(.*?)>(.*?)<\/pre>/is',
 		'',
 		$str
 	);
@@ -559,7 +569,7 @@ function parse_ua_and_icon($userAgent){
 	}
 	$parsed = argon_parse_user_agent($userAgent);
 	$out = "<div class='comment-useragent'>";
-	if ($argon_comment_show_ua['platform'] == true){
+	if (isset($argon_comment_show_ua['platform']) && $argon_comment_show_ua['platform'] == true){
 		if (isset($GLOBALS['UA_ICON'][$parsed['platform']])){
 			$out .= $GLOBALS['UA_ICON'][$parsed['platform']] . " ";
 		}else{
@@ -567,14 +577,14 @@ function parse_ua_and_icon($userAgent){
 		}
 		$out .= $parsed['platform'];
 	}
-	if ($argon_comment_show_ua['browser'] == true){
+	if (isset($argon_comment_show_ua['browser']) && $argon_comment_show_ua['browser'] == true){
 		if (isset($GLOBALS['UA_ICON'][$parsed['browser']])){
 			$out .= " " . $GLOBALS['UA_ICON'][$parsed['browser']];
 		}else{
 			$out .= " " . $GLOBALS['UA_ICON']['Unknown'];
 		}
 		$out .= " " . $parsed['browser'];
-		if ($argon_comment_show_ua['version'] == true){
+		if (isset($argon_comment_show_ua['version']) && $argon_comment_show_ua['version'] == true){
 			$out .= " " . $parsed['version'];
 		}
 	}
@@ -606,9 +616,7 @@ function check_login_user_same($userid){
 	if ($userid == 0){
 		return false;
 	}
-	global $current_user;
-	get_currentuserinfo();
-	if ($userid != ($current_user -> ID)){
+	if ($userid != (wp_get_current_user() -> ID)){
 		return false;
 	}
 	return true;
@@ -719,7 +727,7 @@ function argon_get_comment_text($comment_ID = 0, $args = array()) {
 	);
 	$comment_text = preg_replace(
 		'/<img src="(.*?)" alt="(.*?)" \/>/',
-		'<a data-src="$1" title="$2" class="comment-image" rel="nofollow">
+		'<a href="$1" title="$2" data-fancybox="comment-' . $comment -> comment_ID . '-image" class="comment-image" rel="nofollow">
 			<i class="fa fa-image" aria-hidden="true"></i>
 			' . __('查看图片', 'argon') . '
 			<img src="" alt="$2" class="comment-image-preview">
@@ -827,70 +835,86 @@ function argon_comment_shuoshuo_preview_format($comment, $args, $depth){
 	<li>
 <?php }
 //评论验证码生成 & 验证
-function get_comment_captcha_seed(){
+function get_comment_captcha_seed($refresh = false){
+	if (isset($_SESSION['captchaSeed']) && !$refresh){
+		return $_SESSION['captchaSeed'];
+	}
 	$captchaSeed = rand(0 , 500000000);
+	$_SESSION['captchaSeed'] = $captchaSeed;
 	return $captchaSeed;
 }
-function get_comment_captcha($captchaSeed){
-	mt_srand($captchaSeed + 10007);
-	$oper = mt_rand(1 , 4);
-	$num1 = 0;
-	$num2 = 0;
-	switch ($oper){
-		case 1:
-			$num1 = mt_rand(1 , 20);
-			$num2 = mt_rand(0 , 20 - $num1);
-			return $num1 . " + " . $num2 . " = ";
-			break;
-		case 2:
-			$num1 = mt_rand(10 , 20);
-			$num2 = mt_rand(1 , $num1);
-			return $num1 . " - " . $num2 . " = ";
-			break;
-		case 3:
-			$num1 = mt_rand(3 , 9);
-			$num2 = mt_rand(3 , 9);
-			return $num1 . " * " . $num2 . " = ";
-			break;
-		case 4:
-			$num2 = mt_rand(2 , 9);
-			$num1 = $num2 * mt_rand(2 , 9);
-			return $num1 . " / " . $num2 . " = ";
-			break;
-		default:
-			break;
+class captcha_calculation{ //数字验证码
+	var $captchaSeed;
+	function __construct($seed) {
+		$this -> captchaSeed = $seed;
 	}
-}
-function get_comment_captcha_answer($captchaSeed){
-	mt_srand($captchaSeed + 10007);
-	$oper = mt_rand(1 , 4);
-	$num1 = 0;
-	$num2 = 0;
-	switch ($oper){
-		case 1:
-			$num1 = mt_rand(1 , 20);
-			$num2 = mt_rand(0 , 20 - $num1);
-			return $num1 + $num2;
-			break;
-		case 2:
-			$num1 = mt_rand(10 , 20);
-			$num2 = mt_rand(1 , $num1);
-			return $num1 - $num2;
-			break;
-		case 3:
-			$num1 = mt_rand(3 , 9);
-			$num2 = mt_rand(3 , 9);
-			return $num1 * $num2;
-			break;
-		case 4:
-			$num2 = mt_rand(2 , 9);
-			$num1 = $num2 * mt_rand(2 , 9);
-			return $num1 / $num2;
-			break;
-		default:
-			break;
+	function getChallenge(){
+		mt_srand($this -> captchaSeed + 10007);
+		$oper = mt_rand(1 , 4);
+		$num1 = 0;
+		$num2 = 0;
+		switch ($oper){
+			case 1:
+				$num1 = mt_rand(1 , 20);
+				$num2 = mt_rand(0 , 20 - $num1);
+				return $num1 . " + " . $num2 . " = ";
+				break;
+			case 2:
+				$num1 = mt_rand(10 , 20);
+				$num2 = mt_rand(1 , $num1);
+				return $num1 . " - " . $num2 . " = ";
+				break;
+			case 3:
+				$num1 = mt_rand(3 , 9);
+				$num2 = mt_rand(3 , 9);
+				return $num1 . " * " . $num2 . " = ";
+				break;
+			case 4:
+				$num2 = mt_rand(2 , 9);
+				$num1 = $num2 * mt_rand(2 , 9);
+				return $num1 . " / " . $num2 . " = ";
+				break;
+			default:
+				break;
+		}
 	}
-	return "";
+	function getAnswer(){
+		mt_srand($this -> captchaSeed + 10007);
+		$oper = mt_rand(1 , 4);
+		$num1 = 0;
+		$num2 = 0;
+		switch ($oper){
+			case 1:
+				$num1 = mt_rand(1 , 20);
+				$num2 = mt_rand(0 , 20 - $num1);
+				return $num1 + $num2;
+				break;
+			case 2:
+				$num1 = mt_rand(10 , 20);
+				$num2 = mt_rand(1 , $num1);
+				return $num1 - $num2;
+				break;
+			case 3:
+				$num1 = mt_rand(3 , 9);
+				$num2 = mt_rand(3 , 9);
+				return $num1 * $num2;
+				break;
+			case 4:
+				$num2 = mt_rand(2 , 9);
+				$num1 = $num2 * mt_rand(2 , 9);
+				return $num1 / $num2;
+				break;
+			default:
+				break;
+		}
+		return "";
+	}
+	function check($answer){
+		if ($answer == self::getAnswer()){
+			return true;
+		}
+		return false;
+	}
 }
 function wrong_captcha(){
 	exit(json_encode(array(
@@ -900,6 +924,14 @@ function wrong_captcha(){
 	)));
 	//wp_die('验证码错误，评论失败');
 }
+function get_comment_captcha(){
+	$captcha = new captcha_calculation(get_comment_captcha_seed());
+	return $captcha -> getChallenge();
+}
+function get_comment_captcha_answer(){
+	$captcha = new captcha_calculation(get_comment_captcha_seed());
+	return $captcha -> getAnswer();
+}
 function check_comment_captcha($comment){
 	if (get_option('argon_comment_need_captcha') == 'false'){
 		return $comment;
@@ -908,41 +940,9 @@ function check_comment_captcha($comment){
 	if(current_user_can('level_7')){
 		return $comment;
 	}
-	mt_srand($_POST['comment_captcha_seed'] + 10007);
-	$oper = mt_rand(1 , 4);
-	$num1 = 0;
-	$num2 = 0;
-	switch ($oper){
-		case 1:
-			$num1 = mt_rand(1 , 20);
-			$num2 = mt_rand(0 , 20 - $num1);
-			if (($num1 + $num2) != $answer){
-				wrong_captcha();
-			}
-			break;
-		case 2:
-			$num1 = mt_rand(10 , 20);
-			$num2 = mt_rand(1 , $num1);
-			if (($num1 - $num2) != $answer){
-				wrong_captcha();
-			}
-			break;
-		case 3:
-			$num1 = mt_rand(3 , 9);
-			$num2 = mt_rand(3 , 9);
-			if ($num1 * $num2 != $answer){
-				wrong_captcha();
-			}
-			break;
-		case 4:
-			$num2 = mt_rand(2 , 9);
-			$num1 = $num2 * mt_rand(2 , 9);
-			if ($num1 / $num2 != $answer){
-				wrong_captcha();
-			}
-			break;
-		default:
-			break;
+	$captcha = new captcha_calculation(get_comment_captcha_seed());
+	if (!($captcha -> check($answer))){
+		wrong_captcha();
 	}
 	return $comment;
 }
@@ -997,7 +997,7 @@ function ajax_post_comment(){
 		),
 		array($comment)
 	);
-	$newCaptchaSeed = get_comment_captcha_seed();
+	$newCaptchaSeed = get_comment_captcha_seed(true);
 	$newCaptcha = get_comment_captcha($newCaptchaSeed);
 	if (current_user_can('level_7')){
 		$newCaptchaAnswer = get_comment_captcha_answer($newCaptchaSeed);
@@ -1328,11 +1328,17 @@ function get_argon_comment_paginate_links_prev_url(){
 		$str,
 		$url
 	);
+	if (!isset($url[1])){
+		return NULL;
+	}
 	return $url[1];
 }
 //QQ Avatar 获取
 function get_avatar_by_qqnumber($avatar){
 	global $comment;
+	if (!isset($comment) || !isset($comment -> comment_ID)){
+		return $avatar;
+	}
 	$qqnumber = get_comment_meta($comment -> comment_ID, 'qq_number', true);
 	if (!empty($qqnumber)){
 		preg_match_all('/width=\'(.*?)\'/', $avatar, $preg_res);
@@ -1381,9 +1387,19 @@ function argon_lazyload($content){
 	$lazyload_loading_style = "lazyload-style-" . $lazyload_loading_style;
 
 	if(!is_feed() && !is_robots() && !is_home()){
-		$content = preg_replace('/<img(.+)src=[\'"]([^\'"]+)[\'"](.*)>/i',"<img class=\"lazyload " . $lazyload_loading_style . "\" src=\"data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPgo8c3ZnIHdpZHRoPSIxIiBoZWlnaHQ9IjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgc3Ryb2tlPSIjZmZmZmZmMDAiPjxnPjwvZz4KPC9zdmc+\" \$1data-original=\"\$2\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAANSURBVBhXYzh8+PB/AAffA0nNPuCLAAAAAElFTkSuQmCC\"\$3>\n<noscript>\$0</noscript>" , $content);
+		$content = preg_replace('/<img(.*?)src=[\'"](.*?)[\'"](.*?)((\/>)|(<\/img>))/i',"<img class=\"lazyload " . $lazyload_loading_style . "\" src=\"data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPgo8c3ZnIHdpZHRoPSIxIiBoZWlnaHQ9IjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgc3Ryb2tlPSIjZmZmZmZmMDAiPjxnPjwvZz4KPC9zdmc+\" \$1data-original=\"\$2\" src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAANSURBVBhXYzh8+PB/AAffA0nNPuCLAAAAAElFTkSuQmCC\"\$3$4" , $content);
 		$content = preg_replace('/<img(.*?)data-full-url=[\'"]([^\'"]+)[\'"](.*)>/i',"<img$1data-full-url=\"$2\" data-original=\"$2\"$3>" , $content);
 		$content = preg_replace('/<img(.*?)srcset=[\'"](.*?)[\'"](.*)>/i',"<img$1$3>" , $content);
+	}
+	return $content;
+}
+function argon_fancybox($content){
+	if(!is_feed() && !is_robots() && !is_home()){
+		if (get_option('argon_enable_lazyload') != 'false'){
+			$content = preg_replace('/<img(.*?)data-original=[\'"](.*?)[\'"](.*?)((\/>)|>|(<\/img>))/i',"<div class='fancybox-wrapper' data-fancybox='post-images' href='$2'>$0</div>" , $content);
+		}else{
+			$content = preg_replace('/<img(.*?)src=[\'"](.*?)[\'"](.*?)((\/>)|>|(<\/img>))/i',"<div class='fancybox-wrapper' data-fancybox='post-images' href='$2'>$0</div>" , $content);
+		}
 	}
 	return $content;
 }
@@ -1391,7 +1407,9 @@ function the_content_filter($content){
 	if (get_option('argon_enable_lazyload') != 'false'){
 		$content = argon_lazyload($content);
 	}
-
+	if (get_option('argon_enable_fancybox') != 'false' && get_option('argon_enable_zoomify') == 'false'){
+		$content = argon_fancybox($content);
+	}
 	global $post;
 	$custom_css = get_post_meta($post -> ID, 'argon_custom_css', true);
 	if (!empty($custom_css)){
@@ -1400,7 +1418,7 @@ function the_content_filter($content){
 
 	return $content;
 }
-add_filter('the_content' , 'the_content_filter');
+add_filter('the_content' , 'the_content_filter',20);
 //使用 CDN 加速 gravatar
 function gravatar_cdn($url){
 	$cdn = get_option('argon_gravatar_cdn', 'gravatar.loli.net/avatar/');
@@ -1420,7 +1438,7 @@ function text_gravatar($url){
 	$url .= '&d=404';
 	return $url;
 }
-if (get_option('argon_text_gravatar', 'false') == 'true'){
+if (get_option('argon_text_gravatar', 'false') == 'true' && !is_admin()){
 	add_filter('get_avatar_url', 'text_gravatar');
 }
 //说说点赞
@@ -2258,6 +2276,86 @@ add_shortcode('noshortcode','shortcode_noshortcode');
 function shortcode_noshortcode($attr,$content=""){
 	return $content;
 }
+//Reference Footnote
+add_shortcode('ref','shortcode_ref');
+$post_references = array();
+$post_reference_keys_first_index = array();
+$post_reference_contents_first_index = array();
+function argon_get_ref_html($content, $index, $subIndex){
+	$index++;
+	return "<sup class='reference' id='ref_" . $index . "_" . $subIndex . "' data-content='" . esc_attr($content) . "' tabindex='0'><a class='reference-link' href='#ref_" . $index . "'>[" . $index . "]</a></sup>";
+}
+function shortcode_ref($attr,$content=""){
+	global $post_references;
+	global $post_reference_keys_first_index;
+	global $post_reference_contents_first_index;
+	$content = preg_replace(
+		'/<p>(.*?)<\/p>/is',
+		'</br>$1',
+		$content
+	);
+	$content = wp_kses($content, array(
+		'a' => array(
+			'href' => array(),
+			'title' => array(),
+			'target' => array()
+		),
+		'br' => array(),
+		'em' => array(),
+		'strong' => array(),
+		'b' => array(),
+		'sup' => array(),
+		'sub' => array(),
+		'small' => array()
+	));
+	if (isset($attr['id'])){
+		if (isset($post_reference_keys_first_index[$attr['id']])){
+			$post_references[$post_reference_keys_first_index[$attr['id']]]['count']++;
+		}else{
+			array_push($post_references, array('content' => $content, 'count' => 1));
+			$post_reference_keys_first_index[$attr['id']] = count($post_references) - 1;
+		}
+		$index = $post_reference_keys_first_index[$attr['id']];
+		return argon_get_ref_html($post_references[$index]['content'], $index, $post_references[$index]['count']);
+	}else{
+		if (isset($post_reference_contents_first_index[$content])){
+			$post_references[$post_reference_contents_first_index[$content]]['count']++;
+			$index = $post_reference_contents_first_index[$content];
+			return argon_get_ref_html($post_references[$index]['content'], $index, $post_references[$index]['count']);
+		}else{
+			array_push($post_references, array('content' => $content, 'count' => 1));
+			$post_reference_contents_first_index[$content] = count($post_references) - 1;
+			$index = count($post_references) - 1;
+			return argon_get_ref_html($post_references[$index]['content'], $index, $post_references[$index]['count']);
+		}
+	}
+}
+function get_reference_list(){
+	global $post_references;
+	if (count($post_references) == 0){
+		return "";
+	}
+	$res = "<div class='reference-list-container'>";
+	$res .= "<h3>" . (get_option('argon_reference_list_title') == "" ? __('参考', 'argon') : get_option('argon_reference_list_title')) . "</h3>";
+	$res .= "<ol class='reference-list'>";
+		foreach ($post_references as $index => $ref) {
+			$res .= "<li id='ref_" . ($index + 1)  . "'><div>";
+			if ($ref['count'] == 1){
+				$res .= "<a class='reference-list-backlink' href='#ref_" . ($index + 1) . "_1' aria-label='back'>^</a>";
+			}else{
+				$res .= "<span class='reference-list-backlink'>^</span>";
+				for ($i = 1, $j = 'a'; $i <= $ref['count']; $i++, $j++){
+					$res .= "<sup><a class='reference-list-backlink' href='#ref_" . ($index + 1) . "_" . $i . "' aria-label='back'>" . $j . "</a></sup>";
+				}
+			}
+			$res .= "<span>" . $ref['content'] . "</span>";
+			$res .= "<div class='space' tabindex='-1'></div>";
+			$res .= "</div></li>";
+		}
+	$res .= "</ol>";
+	$res .= "</div>";
+	return $res;
+}
 //TinyMce 按钮
 function argon_tinymce_extra_buttons(){
 	if(!current_user_can('edit_posts') && !current_user_can('edit_pages')){
@@ -2332,6 +2430,14 @@ function themeoptions_page(){
 			.gu-mirror{position:fixed!important;margin:0!important;z-index:9999!important;opacity:.8;-ms-filter:"progid:DXImageTransform.Microsoft.Alpha(Opacity=80)";filter:alpha(opacity=80)}.gu-hide{display:none!important}.gu-unselectable{-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important}.gu-transit{opacity:.2;-ms-filter:"progid:DXImageTransform.Microsoft.Alpha(Opacity=20)";filter:alpha(opacity=20)}
 		</style>
 		<svg width="300" style="margin-top: 20px;" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="673.92 415.2 510.83 151.8" enable-background="new 0 0 1920 1080" xml:space="preserve"><g><g><path fill="rgb(94, 114, 228, 0)" stroke="#5E72E4" stroke-width="3" stroke-dasharray="402" stroke-dashoffset="402" d="M811.38,450.13c-2.2-3.81-7.6-6.93-12-6.93h-52.59c-4.4,0-9.8,3.12-12,6.93l-26.29,45.54c-2.2,3.81-2.2,10.05,0,13.86l26.29,45.54c2.2,3.81,7.6,6.93,12,6.93h52.59c4.4,0,9.8-3.12,12-6.93l26.29-45.54c2.2-3.81,2.2-10.05,0-13.86L811.38,450.13z"><animate attributeName="stroke-width" begin="1s" values="3; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.5s" values="402; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="fill" begin="1s" values="rgb(94, 114, 228, 0); rgb(94, 114, 228, 0.3)" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/></path></g><g><path fill="rgb(94, 114, 228, 0)" d="M783.65,422.13c-2.2-3.81-7.6-6.93-12-6.93H715.6c-4.4,0-9.8,3.12-12,6.93l-28.03,48.54c-2.2,3.81-2.2,10.05,0,13.86l28.03,48.54c2.2,3.81,7.6,6.93,12,6.93h56.05c4.4,0,9.8-3.12,12-6.93l28.03-48.54c2.2-3.81,2.2-10.05,0-13.86L783.65,422.13z"><animateTransform attributeName="transform" type="translate" begin="1.5s" values="27.73,28; 0,0" dur="1.1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="fill" begin="1.5s" values="rgb(94, 114, 228, 0); rgb(94, 114, 228, 0.8)" dur="1.1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/></path></g></g><g><g><clipPath id="clipPath_1"><rect x="887.47" y="441.31" width="68.76" height="83.07"/></clipPath><path clip-path="url(#clipPath_1)" fill="none" stroke="#5E72E4" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" stroke-dasharray="190" d="M893.52,533.63l28.71-90.3l31.52,90.31"><animate attributeName="stroke-width" begin="1s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.5s" values="190; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="0.5s" /></path><line clip-path="url(#clipPath_1)" fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="45" x1="940.44" y1="495.5" x2="905" y2="495.5"><animate attributeName="stroke-width" begin="1s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.5s" values="-37; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="0.5s" /></line></g><g><path fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="56" d="M976.86,469.29v55.09"><animate attributeName="stroke-width" begin="1.15s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.65s" values="56; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="0.65s" /></path><path fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="38" d="M976.86,489.77c0-9.68,7.85-17.52,17.52-17.52c3.5,0,6.76,1.03,9.5,2.8"><animate attributeName="stroke-width" begin="1.15s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.65s" values="38; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="0.65s" /></path></g><g><path fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="124" d="M1057.86,492.08c0,10.94-8.87,19.81-19.81,19.81c-10.94,0-19.81-8.87-19.81-19.81s8.87-19.81,19.81-19.81C1048.99,472.27,1057.86,481.14,1057.86,492.08z"><animate attributeName="stroke-width" begin="1.3s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.8s" values="-124; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="0.8s" /></path><path fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="110" d="M1057.84,467.27v54.05c0,10.94-8.87,19.81-19.81,19.81c-8.36,0-15.51-5.18-18.42-12.5"><animate attributeName="stroke-width" begin="1.3s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.8s" values="110; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="0.8s" /></path></g><g><path fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="140" d="M1121.83,495.46c0,12.81-9.45,23.19-21.11,23.19s-21.11-10.38-21.11-23.19c0-12.81,9.45-23.19,21.11-23.19S1121.83,482.65,1121.83,495.46z"><animate attributeName="stroke-width" begin="1.45s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="0.95s" values="-140; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="0.95s" /></path></g><g><path fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="57" d="M1143.78,524.38v-55.71"><animate attributeName="stroke-width" begin="1.6s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="1.1s" values="-57; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="1.1s" /></path><path fill="none" stroke="#5E72E4" stroke-width="0" stroke-miterlimit="10" stroke-dasharray="90" d="M1143.95,490.15c0-9.88,8.01-17.9,17.9-17.9c9.88,0,17.9,8.01,17.9,17.9v34.23"><animate attributeName="stroke-width" begin="1.6s" values="3; 10" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><animate attributeName="stroke-dashoffset" begin="1.1s" values="90; 0" dur="1s" fill="freeze" calcMode="spline" keySplines="0.8 0 0.2 1"/><set attributeName="stroke-width" to="3" begin="1.1s" /></path></g></g></svg>
+		<p style="margin-top: 20px;">
+			<a href="https://github.com/solstice23/argon-theme/" target="_blank" style="box-shadow: none;text-decoration: none;">
+				<svg width="30" height="30" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" clip-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8C0 11.54 2.29 14.53 5.47 15.59C5.87 15.66 6.02 15.42 6.02 15.21C6.02 15.02 6.01 14.39 6.01 13.72C4 14.09 3.48 13.23 3.32 12.78C3.23 12.55 2.84 11.84 2.5 11.65C2.22 11.5 1.82 11.13 2.49 11.12C3.12 11.11 3.57 11.7 3.72 11.94C4.44 13.15 5.59 12.81 6.05 12.6C6.12 12.08 6.33 11.73 6.56 11.53C4.78 11.33 2.92 10.64 2.92 7.58C2.92 6.71 3.23 5.99 3.74 5.43C3.66 5.23 3.38 4.41 3.82 3.31C3.82 3.31 4.49 3.1 6.02 4.13C6.66 3.95 7.34 3.86 8.02 3.86C8.7 3.86 9.38 3.95 10.02 4.13C11.55 3.09 12.22 3.31 12.22 3.31C12.66 4.41 12.38 5.23 12.3 5.43C12.81 5.99 13.12 6.7 13.12 7.58C13.12 10.65 11.25 11.33 9.47 11.53C9.76 11.78 10.01 12.26 10.01 13.01C10.01 14.08 10 14.94 10 15.21C10 15.42 10.15 15.67 10.55 15.59C13.71 14.53 16 11.53 16 8C16 3.58 12.42 0 8 0Z" transform="scale(64)" fill="#1B1F23"/>
+					</svg>
+				<span style="font-size: 20px;transform: translate(5px,-9px);display: inline-block;">solstice23/argon-theme</span>
+			</a>
+		</p>
 		<h1 style="color: #5e72e4;"><?php _e("Argon 主题设置", 'argon'); ?></h1>
 		<p><?php _e("按下", 'argon'); ?> <kbd style="font-family: sans-serif;">Ctrl + F</kbd> <?php _e("或在右侧目录中来查找设置", 'argon'); ?></p>
 		<form method="POST" action="" id="main_form">
@@ -2539,8 +2645,8 @@ function themeoptions_page(){
 						<td>
 							<select name="argon_enable_headroom">
 								<?php $argon_enable_headroom = get_option('argon_enable_headroom'); ?>
-								<option value="false" <?php if ($argon_enable_headroom=='false'){echo 'selected';} ?>>关闭</option>
-								<option value="true" <?php if ($argon_enable_headroom=='true'){echo 'selected';} ?>>开启</option>
+								<option value="false" <?php if ($argon_enable_headroom=='false'){echo 'selected';} ?>><?php _e('关闭', 'argon');?></option>
+								<option value="true" <?php if ($argon_enable_headroom=='true'){echo 'selected';} ?>><?php _e('开启', 'argon');?></option>
 							</select>
 							<p class="description"><?php _e('在页面向下滚动时隐藏顶栏，向上滚动时显示顶栏', 'argon');?></p>
 						</td>
@@ -2901,6 +3007,14 @@ function themeoptions_page(){
 							<p class="description"><?php _e('也可以针对每篇文章单独设置', 'argon');?></p>
 						</td>
 					</tr>
+					<tr><th class="subtitle"><h3><?php _e('脚注(引用)', 'argon');?></h3></th></tr>
+					<tr>
+						<th><label><?php _e('脚注列表标题', 'argon');?></label></th>
+						<td>
+							<input type="text" class="regular-text" name="argon_reference_list_title" value="<?php echo (get_option('argon_reference_list_title') == "" ? __('参考', 'argon') : get_option('argon_reference_list_title')); ?>"/>
+							<p class="description"><?php _e('脚注列表显示在文末，在文章中有脚注的时候会显示。</br>使用 <code>ref</code> 短代码可以在文中插入脚注。', 'argon');?></p>
+						</td>
+					</tr>
 					<tr><th class="subtitle"><h3><?php _e('分享', 'argon');?></h3></th></tr>
 					<tr>
 						<th><label><?php _e('显示文章分享按钮', 'argon');?></label></th>
@@ -3084,7 +3198,7 @@ function themeoptions_page(){
 						<td>
 							<select name="argon_code_theme">
 								<?php
-								$argon_code_themes_list = array("a11y-dark", "a11y-light", "agate", "an-old-hope", "androidstudio", "arduino-light", "arta", "ascetic", "atelier-cave-dark", "atelier-cave-light", "atelier-dune-dark", "atelier-dune-light", "atelier-estuary-dark", "atelier-estuary-light", "atelier-forest-dark", "atelier-forest-light", "atelier-heath-dark", "atelier-heath-light", "atelier-lakeside-dark", "atelier-lakeside-light", "atelier-plateau-dark", "atelier-plateau-light", "atelier-savanna-dark", "atelier-savanna-light", "atelier-seaside-dark", "atelier-seaside-light", "atelier-sulphurpool-dark", "atelier-sulphurpool-light", "atom-one-dark-reasonable", "atom-one-dark", "atom-one-light", "brown-paper", "brown-papersq", "codepen-embed", "color-brewer", "darcula", "dark", "darkula", "default", "docco", "dracula", "far", "foundation", "github-gist", "github", "gml", "googlecode", "gradient-dark", "grayscale", "gruvbox-dark", "gruvbox-light", "hopscotch", "hybrid", "idea", "ir-black", "isbl-editor-dark", "isbl-editor-light", "kimbie.dark", "kimbie.light", "lightfair", "magula", "mono-blue", "monokai-sublime", "monokai", "night-owl", "nord", "obsidian", "ocean", "onedark", "paraiso-dark", "paraiso-light", "pojoaque", "pojoaque", "purebasic", "qtcreator_dark", "qtcreator_light", "railscasts", "rainbow", "routeros", "school-book", "school-book", "shades-of-purple", "solarized-dark", "solarized-light", "sunburst", "tomorrow-night-blue", "tomorrow-night-bright", "tomorrow-night-eighties", "tomorrow-night", "tomorrow", "vs", "vs2015", "xcode", "xt256", "zenburn");
+								$argon_code_themes_list = array("a11y-dark", "a11y-light", "agate", "an-old-hope", "androidstudio", "arduino-light", "arta", "ascetic", "atelier-cave-dark", "atelier-cave-light", "atelier-dune-dark", "atelier-dune-light", "atelier-estuary-dark", "atelier-estuary-light", "atelier-forest-dark", "atelier-forest-light", "atelier-heath-dark", "atelier-heath-light", "atelier-lakeside-dark", "atelier-lakeside-light", "atelier-plateau-dark", "atelier-plateau-light", "atelier-savanna-dark", "atelier-savanna-light", "atelier-seaside-dark", "atelier-seaside-light", "atelier-sulphurpool-dark", "atelier-sulphurpool-light", "atom-one-dark-reasonable", "atom-one-dark", "atom-one-light", "brown-paper", "codepen-embed", "color-brewer", "darcula", "dark", "darkula", "default", "docco", "dracula", "far", "foundation", "github-gist", "github", "gml", "googlecode", "gradient-dark", "gradient-light", "grayscale", "gruvbox-dark", "gruvbox-light", "hopscotch", "hybrid", "idea", "ir-black", "isbl-editor-dark", "isbl-editor-light", "kimbie.dark", "kimbie.light", "lightfair", "lioshi", "magula", "mono-blue", "monokai-sublime", "monokai", "night-owl", "nnfx-dark", "nnfx", "nord", "obsidian", "ocean", "onedark", "paraiso-dark", "paraiso-light", "pojoaque", "purebasic", "qtcreator_dark", "qtcreator_light", "railscasts", "rainbow", "routeros", "school-book", "shades-of-purple", "solarized-dark", "solarized-light", "srcery", "stackoverflow-dark", "stackoverflow-light", "sunburst", "tomorrow-night-blue", "tomorrow-night-bright", "tomorrow-night-eighties", "tomorrow-night", "tomorrow", "vs", "vs2015", "xcode", "xt256", "zenburn");
 								$argon_code_theme = get_option('argon_code_theme');
 								if ($argon_code_theme == ''){
 									$argon_code_theme = "vs2015";
@@ -3218,24 +3332,48 @@ function themeoptions_page(){
 					</tr>
 					<tr><th class="subtitle"><h2><?php _e('图片放大浏览', 'argon');?></h2></th></tr>
 					<tr>
-						<th><label><?php _e('是否启用图片放大浏览 (Zoomify)', 'argon');?></label></th>
+						<th><label><?php _e('是否启用图片放大浏览 (Fancybox)', 'argon');?></label></th>
 						<td>
-							<select name="argon_enable_zoomify">
-								<?php $argon_enable_zoomify = get_option('argon_enable_zoomify'); ?>
-								<option value="true" <?php if ($argon_enable_zoomify=='true'){echo 'selected';} ?>><?php _e('启用', 'argon');?></option>
-								<option value="false" <?php if ($argon_enable_zoomify=='false'){echo 'selected';} ?>><?php _e('禁用', 'argon');?></option>
+							<select name="argon_enable_fancybox" onchange="if (this.value == 'true'){setInputValue('argon_enable_zoomify','false');}">
+								<?php $argon_enable_fancybox = get_option('argon_enable_fancybox'); ?>
+								<option value="true" <?php if ($argon_enable_fancybox=='true'){echo 'selected';} ?>><?php _e('启用', 'argon');?></option>
+								<option value="false" <?php if ($argon_enable_fancybox=='false'){echo 'selected';} ?>><?php _e('禁用', 'argon');?></option>
 							</select>
 							<p class="description"><?php _e('开启后，文章中图片被单击时会放大预览', 'argon');?></p>
 						</td>
 					</tr>
-					<tr>
+					<tr style="opacity: 0.5;" onclick="$(this).remove();$('.zoomify-old-settings').fadeIn(500);">
+						<th><label><?php _e('展开旧版图片放大浏览 (Zoomify) 设置 ▼', 'argon');?></label></th>
+						<td>
+						</td>
+					</tr>
+					<style>
+						.zoomify-old-settings{
+							opacity: 0.65;
+						}
+						.zoomify-old-settings:hover{
+							opacity: 1;
+						}
+					</style>
+					<tr class="zoomify-old-settings" style="display: none;">
+						<th><label><?php _e('是否启用旧版图片放大浏览 (Zoomify)', 'argon');?></label></th>
+						<td>
+							<select name="argon_enable_zoomify" onchange="if (this.value == 'true'){setInputValue('argon_enable_fancybox','false');}">
+								<?php $argon_enable_zoomify = get_option('argon_enable_zoomify'); ?>
+								<option value="true" <?php if ($argon_enable_zoomify=='true'){echo 'selected';} ?>><?php _e('启用', 'argon');?></option>
+								<option value="false" <?php if ($argon_enable_zoomify=='false'){echo 'selected';} ?>><?php _e('禁用', 'argon');?></option>
+							</select>
+							<p class="description"><?php _e('自 Argon 1.1.0 版本后，图片缩放预览库由 Zoomify 更换为 Fancybox，如果您还想使用旧版图片预览，请开启此选项。注意: Zoomify 和 Fancybox 不能同时开启。', 'argon');?></p>
+						</td>
+					</tr>
+					<tr class="zoomify-old-settings" style="display: none;">
 						<th><label><?php _e('缩放动画长度', 'argon');?></label></th>
 						<td>
 							<input type="number" name="argon_zoomify_duration" min="0" max="10000" value="<?php echo (get_option('argon_zoomify_duration') == '' ? '200' : get_option('argon_zoomify_duration')); ?>"/>	ms
 							<p class="description"><?php _e('图片被单击后缩放到全屏动画的时间长度', 'argon');?></p>
 						</td>
 					</tr>
-					<tr>
+					<tr class="zoomify-old-settings" style="display: none;">
 						<th><label><?php _e('缩放动画曲线', 'argon');?></label></th>
 						<td>
 							<input type="text" class="regular-text" name="argon_zoomify_easing" value="<?php echo (get_option('argon_zoomify_easing') == '' ? 'cubic-bezier(0.4,0,0,1)' : get_option('argon_zoomify_easing')); ?>"/>
@@ -3244,7 +3382,7 @@ function themeoptions_page(){
 							</p>
 						</td>
 					</tr>
-					<tr>
+					<tr class="zoomify-old-settings" style="display: none;">
 						<th><label><?php _e('图片最大缩放比例', 'argon');?></label></th>
 						<td>
 							<input type="number" name="argon_zoomify_scale" min="0.01" max="1" step="0.01" value="<?php echo (get_option('argon_zoomify_scale') == '' ? '0.9' : get_option('argon_zoomify_scale')); ?>"/>
@@ -3490,7 +3628,7 @@ window.pjaxLoaded = function(){
 						</td>
 					</tr>
 					<tr>
-						<th><label>评论文字头像</label></th>
+						<th><label><?php _e('评论文字头像', 'argon');?></label></th>
 						<td>
 							<select name="argon_text_gravatar">
 								<?php $argon_text_gravatar = get_option('argon_text_gravatar'); ?>
@@ -3540,7 +3678,7 @@ window.pjaxLoaded = function(){
 					<tr>
 						<th><label><?php _e('邮箱密码', 'argon');?></label></th>
 						<td>
-							<input type="text" class="regular-text" name="argon_mail_password" value="<?php echo get_option('argon_mail_password'); ?>"/>
+							<input type="password" class="regular-text" name="argon_mail_password" value="<?php echo get_option('argon_mail_password'); ?>"/>
 						</td>
 					</tr>
 					<tr>
@@ -3720,6 +3858,17 @@ window.pjaxLoaded = function(){
 						</td>
 					</tr>
 					<tr>
+						<th><label><?php _e('禁用 Google 字体', 'argon');?></label></th>
+						<td>
+							<select name="argon_disable_googlefont">
+								<?php $argon_disable_googlefont = get_option('argon_disable_googlefont'); ?>
+								<option value="false" <?php if ($argon_disable_googlefont=='false'){echo 'selected';} ?>><?php _e('不禁用', 'argon');?></option>
+								<option value="true" <?php if ($argon_disable_googlefont=='true'){echo 'selected';} ?>><?php _e('禁用', 'argon');?></option>
+							</select>
+							<p class="description"><?php _e('Google 字体在中国大陆访问可能会阻塞，禁用可以解决页面加载被阻塞的问题。禁用后，Serif 字体将失效。', 'argon');?></p>
+						</td>
+					</tr>
+					<tr>
 						<th><label><?php _e('建站日期', 'argon');?></label></th>
 						<td>
 							<input type="text" class="regular-text" name="argon_build_date" value="<?php echo get_option('argon_build_date'); ?>"/>
@@ -3768,6 +3917,7 @@ window.pjaxLoaded = function(){
 		<button id="headindex_toggler" onclick="$('#headindex_box').toggleClass('folded');"><?php _e('收起', 'argon');?></button>
 		<div id="headindex"></div>
 	</div>
+	<div id="scroll_navigation"><button onclick="$('body,html').animate({scrollTop: 0}, 300);"><?php _e('到顶部', 'argon');?></button><button onclick="$('body,html').animate({scrollTop: $(document).height()-$(window).height()+10}, 300);"><?php _e('到底部', 'argon');?></button></div>
 	<div id="exported_settings_json_box" class="closed"><div><?php _e('请复制并保存导出后的 JSON', 'argon');?></div><textarea id="exported_settings_json" readonly="true" onclick="$(this).select();"></textarea><div style="width: 100%;margin: auto;margin-top: 15px;cursor: pointer;user-select: none;" onclick="$('#exported_settings_json_box').addClass('closed');"><?php _e('确定', 'argon');?></div></div>
 	<style>
 		.radio-with-img {
@@ -3852,6 +4002,23 @@ window.pjaxLoaded = function(){
 			#headindex_box {
 				display: none;
 			}
+		}
+		#scroll_navigation {
+			position: fixed;
+			right: 10px;
+			bottom: 10px;
+			z-index: 99;
+			user-select: none;
+		}
+		#scroll_navigation button {
+			color: #555;
+			background: #fff;
+			box-shadow: 0 1px 0 #ccc;
+			outline: none !important;
+			border: 1px solid #ccc;
+			border-radius: 2px;
+			cursor: pointer;
+			font-size: 14px;
 		}
 		#exported_settings_json_box{
 			position: fixed;
@@ -4021,6 +4188,13 @@ function argon_update_option($name){
 function argon_update_option_allow_tags($name){
 	update_option($name, stripslashes($_POST[$name]));
 }
+function argon_update_option_checkbox($name){
+	if (isset($_POST[$name]) && $_POST[$name] == 'true'){
+		update_option($name, 'true');
+	}else{
+		update_option($name, 'false');
+	}
+}
 function argon_update_themeoptions(){
 	if (!isset($_POST['update_themeoptions'])){
 		return;
@@ -4045,7 +4219,7 @@ function argon_update_themeoptions(){
 		argon_update_option('argon_banner_subtitle');
 		argon_update_option('argon_banner_background_url');
 		argon_update_option('argon_banner_background_color_type');
-		argon_update_option('argon_banner_background_hide_shapes');
+		argon_update_option_checkbox('argon_banner_background_hide_shapes');
 		argon_update_option('argon_enable_smoothscroll_type');
 		argon_update_option('argon_gravatar_cdn');
 		argon_update_option_allow_tags('argon_footer_html');
@@ -4064,7 +4238,7 @@ function argon_update_themeoptions(){
 		argon_update_option('argon_fab_show_gotocomment_button');
 		argon_update_option('argon_show_headindex_number');
 		argon_update_option('argon_theme_color');
-		update_option('argon_show_customize_theme_color_picker', ($_POST['argon_show_customize_theme_color_picker'] == 'true')?'true':'false');
+		argon_update_option_checkbox('argon_show_customize_theme_color_picker');
 		argon_update_option_allow_tags('argon_seo_description');
 		argon_update_option('argon_seo_keywords');
 		argon_update_option('argon_enable_mobile_scale');
@@ -4082,7 +4256,7 @@ function argon_update_themeoptions(){
 		argon_update_option('argon_comment_allow_editing');
 		argon_update_option('argon_comment_allow_privatemode');
 		argon_update_option('argon_comment_allow_mailnotice');
-		update_option('argon_comment_mailnotice_checkbox_checked', ($_POST['argon_comment_mailnotice_checkbox_checked'] == 'true')?'true':'false');
+		argon_update_option_checkbox('argon_comment_mailnotice_checkbox_checked');
 		argon_update_option('argon_comment_pagination_type');
 		argon_update_option('argon_who_can_visit_comment_edit_history');
 		argon_update_option('argon_home_show_shuoshuo');
@@ -4092,7 +4266,7 @@ function argon_update_themeoptions(){
 		argon_update_option('argon_outdated_info_days');
 		argon_update_option('argon_outdated_info_tip_type');
 		argon_update_option('argon_outdated_info_tip_content');
-		update_option('argon_show_toolbar_mask', ($_POST['argon_show_toolbar_mask'] == 'true')?'true':'false');
+		argon_update_option_checkbox('argon_show_toolbar_mask');
 		argon_update_option('argon_enable_banner_title_typing_effect');
 		argon_update_option('argon_banner_typing_effect_interval');
 		argon_update_option('argon_page_layout');
@@ -4120,6 +4294,8 @@ function argon_update_themeoptions(){
 		argon_update_option('argon_related_post_limit');
 		argon_update_option('argon_article_header_style');
 		argon_update_option('argon_text_gravatar');
+		argon_update_option('argon_disable_googlefont');
+		argon_update_option('argon_reference_list_title');
 
 		//LazyLoad 相关
 		argon_update_option('argon_enable_lazyload');
@@ -4127,7 +4303,8 @@ function argon_update_themeoptions(){
 		argon_update_option('argon_lazyload_threshold');
 		argon_update_option('argon_lazyload_loading_style');
 
-		//Zoomify 相关
+		//图片缩放预览相关
+		argon_update_option('argon_enable_fancybox');
 		argon_update_option('argon_enable_zoomify');
 		argon_update_option('argon_zoomify_duration');
 		argon_update_option('argon_zoomify_easing');

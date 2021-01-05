@@ -1,5 +1,5 @@
 					<footer id="footer" class="site-footer card shadow-sm border-0">
-						<div>Theme <a href="https://github.com/solstice23/argon-theme"><strong>Argon</strong></a><?php if (get_option('argon_hide_footer_author') != 'true') {echo " By solstice23"; }?></div>
+						<div>Theme <a href="https://github.com/solstice23/argon-theme" target="_blank"><strong>Argon</strong></a><?php if (get_option('argon_hide_footer_author') != 'true') {echo " By solstice23"; }?></div>
 						<?php
 							echo get_option('argon_footer_html');
 						?>
@@ -74,9 +74,6 @@
 		<?php }?>
 
 		<?php if (get_option('argon_enable_code_highlight') == 'true') { /*Highlight.js*/?>
-			<script>
-				var argonEnableCodeHighlight = true;
-			</script>
 			<link rel="stylesheet" href="<?php echo $GLOBALS['assets_path']; ?>/assets/vendor/highlight/styles/<?php echo get_option('argon_code_theme') == '' ? 'vs2015' : get_option('argon_code_theme'); ?>.css">
 		<?php }?>
 
